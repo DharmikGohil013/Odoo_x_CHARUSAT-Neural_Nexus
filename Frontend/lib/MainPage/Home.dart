@@ -1,3 +1,4 @@
+import 'package:fitsync/Step_Counter.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pedometer/pedometer.dart';
@@ -164,6 +165,7 @@ class _HomePageState extends State<HomePage> {
                   _buildDrawerItem(context, Icons.location_on, 'Nearby Doctors', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DoctorScreen()))),
                   _buildDrawerItem(context, Icons.info, 'About Us', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutUsPage()))),
                   _buildDrawerItem(context, Icons.settings, 'Settings', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()))),
+                  _buildDrawerItem(context, Icons.directions_walk, 'Step Couter', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StepCounterApp()))),
                   const Divider(color: Colors.grey),
                 ],
               ),
@@ -216,7 +218,7 @@ class _HomeContentState extends State<HomeContent> {
   Future<void> _fetchHomeArticles() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://newsapi.org/v2/everything?q=health+articles&language=en&sortBy=publishedAt&apiKey=8ee2794cd73a41b68c8d3c399d5710c4'));
+          'https://newsapi.org/v2/everything?q=health+articles&language=en&sortBy=publishedAt&apiKey=fdd43d74e64d4c6a9f2710aaf87c61c8'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
@@ -235,7 +237,7 @@ class _HomeContentState extends State<HomeContent> {
   Future<void> _fetchHomeNews() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://newsapi.org/v2/everything?q=health&language=en&sortBy=publishedAt&apiKey=8ee2794cd73a41b68c8d3c399d5710c4'));
+          'https://newsapi.org/v2/everything?q=health&language=en&sortBy=publishedAt&apiKey=fdd43d74e64d4c6a9f2710aaf87c61c8'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {

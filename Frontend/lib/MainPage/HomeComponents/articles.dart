@@ -24,7 +24,7 @@ class _ArticlesPageState extends State<ArticlesPage> {
     try {
       final response = await http.get(
         Uri.parse(
-            'https://newsapi.org/v2/everything?q=health+articles&language=en&sortBy=publishedAt&apiKey=8ee2794cd73a41b68c8d3c399d5710c4'),
+            'https://newsapi.org/v2/everything?q=health+articles&language=en&sortBy=publishedAt&apiKey=fdd43d74e64d4c6a9f2710aaf87c61c8'),
       );
 
       if (response.statusCode == 200) {
