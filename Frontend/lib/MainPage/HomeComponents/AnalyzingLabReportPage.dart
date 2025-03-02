@@ -1,189 +1,100 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:fl_chart/fl_chart.dart';
-import '../../PortSection/ConfigFile.dart';
 
-class AnalyzingLabReportPage extends StatefulWidget {
-  final String userId;
-  const AnalyzingLabReportPage({super.key, required this.userId});
-
-  @override
-  _AnalyzingLabReportPageState createState() => _AnalyzingLabReportPageState();
-}
-
-class _AnalyzingLabReportPageState extends State<AnalyzingLabReportPage> {
-  List<dynamic> reports = [];
-  bool isLoading = true;
-  Map<String, String> predictions = {};
-  List<String> precautions = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchReports();
-  }
-
-  Future<void> _fetchReports() async {
-    try {
-      final response = await http.get(Uri.parse('$getBloodReports${widget.userId}'));
-      if (response.statusCode == 200) {
-        final rawData = jsonDecode(response.body);
-        setState(() {
-          reports = (rawData is List ? rawData : rawData['data'] as List? ?? []).toList()
-            ..sort((a, b) {
-              final aDate = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime.now();
-              final bDate = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime.now();
-              return aDate.compareTo(bDate);
-            });
-          isLoading = false;
-          _analyzeReports();
-        });
-      } else {
-        throw Exception('Failed to load reports: ${response.statusCode}');
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching reports: $e', style: const TextStyle(fontSize: 14))),
-      );
-    }
-  }
-
-  void _analyzeReports() {
-    if (reports.isEmpty) return;
-
-    final latestReport = reports.last;
-    predictions.clear();
-    precautions.clear();
-
-    // Reference ranges (example for adult males; adjust for gender/age)
-    const ranges = {
-      'Hemoglobin': {'min': 13.8, 'max': 17.2}, // Men; women: 12.1-15.1
-      'RBC_Count': {'min': 4.5, 'max': 5.9},
-      'WBC_Count': {'min': 4000, 'max': 11000},
-      'Platelet_Count': {'min': 150000, 'max': 450000},
-      'Hematocrit': {'min': 40, 'max': 50}, // Men; women: 36-46
-      'MCV': {'min': 80, 'max': 100},
-      'MCH': {'min': 27, 'max': 34},
-      'MCHC': {'min': 32, 'max': 36},
-      'ESR': {'min': 0, 'max': 20},
-    };
-
-    ranges.forEach((key, range) {
-      final value = latestReport[key] as num?;
-      if (value != null) {
-        if (value < range['min']!) {
-          predictions[key] = 'Low ($value < ${range['min']})';
-          _addPrecaution(key, 'low');
-        } else if (value > range['max']!) {
-          predictions[key] = 'High ($value > ${range['max']})';
-          _addPrecaution(key, 'high');
-        } else {
-          predictions[key] = 'Normal';
-        }
-      } else {
-        predictions[key] = 'Data missing';
-      }
-    });
-
-    if (predictions['Hemoglobin']!.startsWith('Low') &&
-        predictions['RBC_Count']!.startsWith('Low') &&
-        predictions['Hematocrit']!.startsWith('Low')) {
-      final mcv = latestReport['MCV'] as num?;
-      if (mcv != null) {
-        if (mcv < 80) {
-          predictions['Condition'] = 'Microcytic Anemia';
-          precautions.add('Possible iron deficiency. Increase iron-rich foods (e.g., spinach, red meat) and consult a doctor for iron studies.');
-        } else if (mcv > 100) {
-          predictions['Condition'] = 'Macrocytic Anemia';
-          precautions.add('Possible B12/folate deficiency. Consider supplements and medical evaluation.');
-        } else {
-          predictions['Condition'] = 'Normocytic Anemia';
-          precautions.add('Could be chronic disease-related. Seek medical advice for further tests (e.g., CRP, ferritin).');
-        }
-      }
-    }
-    if (predictions['WBC_Count']!.startsWith('High') || predictions['ESR']!.startsWith('High')) {
-      predictions['Inflammation'] = 'Possible infection or inflammation';
-      precautions.add('Monitor symptoms (fever, fatigue) and consult a doctor to check for infection or autoimmune issues.');
-    }
-  }
-
-  void _addPrecaution(String key, String status) {
-    switch (key) {
-      case 'Hemoglobin':
-        if (status == 'low') precautions.add('Low hemoglobin: Avoid strenuous activity; increase iron intake.');
-        if (status == 'high') precautions.add('High hemoglobin: Stay hydrated; consult a doctor for polycythemia check.');
-        break;
-      case 'WBC_Count':
-        if (status == 'high') precautions.add('High WBC: Rest and hydrate; see a doctor if fever persists.');
-        if (status == 'low') precautions.add('Low WBC: Avoid infections; consult a doctor for immune evaluation.');
-        break;
-      case 'Platelet_Count':
-        if (status == 'low') precautions.add('Low platelets: Avoid injury; seek medical advice for bleeding risk.');
-        if (status == 'high') precautions.add('High platelets: Monitor for clotting risks; consult a doctor.');
-        break;
-      case 'ESR':
-        if (status == 'high') precautions.add('High ESR: Investigate inflammation source with a healthcare provider.');
-        break;
-    }
-  }
-
-  List<FlSpot> _getSpots(String field) {
-    return reports.asMap().entries.map((entry) {
-      final dateStr = entry.value['createdAt'] as String?;
-      final date = dateStr != null ? DateTime.tryParse(dateStr) ?? DateTime.now() : DateTime.now();
-      final value = entry.value[field] as num? ?? 0.0;
-      return FlSpot(date.millisecondsSinceEpoch.toDouble(), value.toDouble());
-    }).toList();
-  }
+class AnalyzingLabReportPage extends StatelessWidget {
+  const AnalyzingLabReportPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Sample predictable data
+    final sampleReports = [
+      {
+        'createdAt': '2025-01-01T00:00:00Z',
+        'Hemoglobin': 12.0,
+        'RBC_Count': 4.2,
+        'WBC_Count': 6000,
+        'Platelet_Count': 180000,
+        'Hematocrit': 38,
+        'MCV': 90,
+        'MCH': 28,
+        'MCHC': 33,
+        'ESR': 15,
+      },
+      {
+        'createdAt': '2025-02-01T00:00:00Z',
+        'Hemoglobin': 11.0,
+        'RBC_Count': 4.0,
+        'WBC_Count': 7000,
+        'Platelet_Count': 200000,
+        'Hematocrit': 34,
+        'MCV': 85,
+        'MCH': 27,
+        'MCHC': 32,
+        'ESR': 20,
+      },
+      {
+        'createdAt': '2025-03-01T00:00:00Z',
+        'Hemoglobin': 10.5,
+        'RBC_Count': 3.8,
+        'WBC_Count': 7000,
+        'Platelet_Count': 200000,
+        'Hematocrit': 32,
+        'MCV': 84,
+        'MCH': 27,
+        'MCHC': 32,
+        'ESR': 25,
+      },
+    ];
+
+    final predictions = {
+      'Hemoglobin': 'Low (10.5 < 13.8)',
+      'RBC_Count': 'Low (3.8 < 4.5)',
+      'Hematocrit': 'Low (32 < 40)',
+      'MCV': 'Normal (84)',
+      'WBC_Count': 'Normal (7000)',
+      'Platelet_Count': 'Normal (200000)',
+      'ESR': 'High (25 > 20)',
+      'Condition': 'Normocytic Anemia',
+      'Inflammation': 'Possible inflammation',
+    };
+
+    final precautions = [
+      'Low hemoglobin: Avoid strenuous activity; increase iron intake (e.g., spinach, red meat).',
+      'Low RBC and Hematocrit: Possible anemia; consult a doctor for further tests (e.g., ferritin).',
+      'High ESR: Monitor symptoms (e.g., fatigue, fever); investigate inflammation source with a healthcare provider.',
+      'General: Stay hydrated and maintain a balanced diet to support recovery.',
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Lab Report Analysis", style: TextStyle(fontSize: 16, color: Colors.white)),
+        title: const Text("Lab Report Analysis", style: TextStyle(fontSize: 18, color: Colors.white)),
         backgroundColor: Colors.blue.shade800,
+        elevation: 0,
       ),
-      body: SafeArea(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade50, Colors.white],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03),
+          padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Lab Report Analytics",
-                style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width * 0.06,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade800,
-                ),
-              ),
+              _buildHeader(context),
               SizedBox(height: MediaQuery.of(context).size.height * 0.02),
-              if (isLoading)
-                const Center(child: CircularProgressIndicator())
-              else if (reports.isEmpty)
-                Center(
-                  child: Text(
-                    "No lab reports available for analysis",
-                    style: TextStyle(
-                      fontSize: MediaQuery.of(context).size.width * 0.04,
-                      color: Colors.grey,
-                    ),
-                  ),
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildChartSection(context),
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.03),
-                    _buildPredictionsSection(context),
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.03),
-                    _buildPrecautionsSection(context),
-                  ],
-                ),
+              _buildChartSection(context, sampleReports),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+              _buildSummarySection(context, sampleReports.last),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+              _buildPredictionsSection(context, predictions),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+              _buildPrecautionsSection(context, precautions),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+              _buildHealthTipsSection(context),
             ],
           ),
         ),
@@ -191,129 +102,216 @@ class _AnalyzingLabReportPageState extends State<AnalyzingLabReportPage> {
     );
   }
 
-  Widget _buildChartSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          "Trends Over Time",
+          "Lab Report Analytics",
           style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.05,
+            fontSize: MediaQuery.of(context).size.width * 0.06,
             fontWeight: FontWeight.bold,
+            color: Colors.blue.shade800,
           ),
         ),
-        SizedBox(height: MediaQuery.of(context).size.height * 0.01),
-        _buildChart(context, "Hemoglobin (g/dL)", _getSpots('Hemoglobin'), 13.8, 17.2),
-        _buildChart(context, "RBC Count (million/µL)", _getSpots('RBC_Count'), 4.5, 5.9),
-        _buildChart(context, "WBC Count (/µL)", _getSpots('WBC_Count'), 4000, 11000),
-        _buildChart(context, "Platelet Count (/µL)", _getSpots('Platelet_Count'), 150000, 450000),
-        _buildChart(context, "Hematocrit (%)", _getSpots('Hematocrit'), 40, 50),
-        _buildChart(context, "MCV (fL)", _getSpots('MCV'), 80, 100),
-        _buildChart(context, "MCH (pg)", _getSpots('MCH'), 27, 34),
-        _buildChart(context, "MCHC (%)", _getSpots('MCHC'), 32, 36),
-        _buildChart(context, "ESR (mm/hr)", _getSpots('ESR'), 0, 20),
+        IconButton(
+          icon: const Icon(Icons.refresh, color: Colors.blue),
+          onPressed: () {}, // Placeholder for refresh action
+          tooltip: 'Refresh Data',
+        ),
       ],
     );
   }
 
-  Widget _buildChart(BuildContext context, String title, List<FlSpot> spots, double minRange, double maxRange) {
+  Widget _buildChartSection(BuildContext context, List<dynamic> reports) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      margin: EdgeInsets.only(bottom: MediaQuery.of(context).size.height * 0.01),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03),
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              title,
-              style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.04,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
-              ),
-            ),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.01),
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.2,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(show: true),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(show: true, reservedSize: 40),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: spots.isNotEmpty && spots.length > 1 ? (spots.last.x - spots.first.x) / 5 : null,
-                        getTitlesWidget: (value, meta) {
-                          final date = DateTime.fromMillisecondsSinceEpoch(value.toInt());
-                          return Text('${date.day}/${date.month}', style: const TextStyle(fontSize: 10));
-                        },
-                      ),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: true),
-                  minX: spots.isNotEmpty ? spots.first.x : 0,
-                  maxX: spots.isNotEmpty ? spots.last.x : 1,
-                  minY: 0,
-                  maxY: spots.isNotEmpty
-                      ? (spots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b) * 1.2).clamp(minRange, maxRange * 1.2)
-                      : maxRange * 1.2,
-                  extraLinesData: ExtraLinesData(
-                    horizontalLines: [
-                      HorizontalLine(y: minRange, color: Colors.green, strokeWidth: 1, dashArray: [5, 5]),
-                      HorizontalLine(y: maxRange, color: Colors.green, strokeWidth: 1, dashArray: [5, 5]),
-                    ],
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: Colors.blue.shade800,
-                      dotData: FlDotData(show: true),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPredictionsSection(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Predictions",
+              "Trends Over Time",
               style: TextStyle(
                 fontSize: MediaQuery.of(context).size.width * 0.05,
                 fontWeight: FontWeight.bold,
                 color: Colors.blue.shade800,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.01),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+            _buildChart(context, "Hemoglobin (g/dL)", _getSpots(reports, 'Hemoglobin'), 13.8, 17.2),
+            _buildChart(context, "RBC Count (million/µL)", _getSpots(reports, 'RBC_Count'), 4.5, 5.9),
+            _buildChart(context, "WBC Count (/µL)", _getSpots(reports, 'WBC_Count'), 4000, 11000),
+            // Add more charts as needed
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<FlSpot> _getSpots(List<dynamic> reports, String field) {
+    return reports.map((report) {
+      final date = DateTime.parse(report['createdAt']);
+      final value = report[field] as num? ?? 0.0;
+      return FlSpot(date.millisecondsSinceEpoch.toDouble(), value.toDouble());
+    }).toList();
+  }
+
+  Widget _buildChart(BuildContext context, String title, List<FlSpot> spots, double minRange, double maxRange) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: MediaQuery.of(context).size.width * 0.04,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: MediaQuery.of(context).size.height * 0.01),
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.25,
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(show: true, drawVerticalLine: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 40,
+                    getTitlesWidget: (value, meta) => Text(
+                      value.toInt().toString(),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: spots.length > 1 ? (spots.last.x - spots.first.x) / 4 : null,
+                    getTitlesWidget: (value, meta) {
+                      final date = DateTime.fromMillisecondsSinceEpoch(value.toInt());
+                      return Text('${date.day}/${date.month}', style: const TextStyle(fontSize: 10));
+                    },
+                  ),
+                ),
+                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.shade300)),
+              minX: spots.isNotEmpty ? spots.first.x : 0,
+              maxX: spots.isNotEmpty ? spots.last.x : 1,
+              minY: 0,
+              maxY: spots.isNotEmpty ? (spots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b) * 1.2) : maxRange * 1.2,
+              extraLinesData: ExtraLinesData(
+                horizontalLines: [
+                  HorizontalLine(y: minRange, color: Colors.green, strokeWidth: 1, dashArray: [5, 5]),
+                  HorizontalLine(y: maxRange, color: Colors.green, strokeWidth: 1, dashArray: [5, 5]),
+                ],
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  color: Colors.blue.shade800,
+                  dotData: FlDotData(show: true),
+                  belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.1)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummarySection(BuildContext context, Map<String, dynamic> latestReport) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Latest Report Summary",
+              style: TextStyle(
+                fontSize: MediaQuery.of(context).size.width * 0.05,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade800,
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+            _buildSummaryRow('Date', DateTime.parse(latestReport['createdAt']).toString().substring(0, 10)),
+            _buildSummaryRow('Hemoglobin', '${latestReport['Hemoglobin']} g/dL'),
+            _buildSummaryRow('RBC Count', '${latestReport['RBC_Count']} million/µL'),
+            _buildSummaryRow('WBC Count', '${latestReport['WBC_Count']} /µL'),
+            _buildSummaryRow('Platelet Count', '${latestReport['Platelet_Count']} /µL'),
+            _buildSummaryRow('ESR', '${latestReport['ESR']} mm/hr'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(value),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPredictionsSection(BuildContext context, Map<String, String> predictions) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Health Predictions",
+              style: TextStyle(
+                fontSize: MediaQuery.of(context).size.width * 0.05,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade800,
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
             ...predictions.entries.map(
                   (entry) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(
                       width: 150,
-                      child: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        entry.key,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                     ),
-                    Expanded(child: Text(entry.value)),
+                    Expanded(
+                      child: Text(
+                        entry.value,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: entry.value.contains('Low') || entry.value.contains('High')
+                              ? Colors.red
+                              : Colors.green,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -324,42 +322,94 @@ class _AnalyzingLabReportPageState extends State<AnalyzingLabReportPage> {
     );
   }
 
-  Widget _buildPrecautionsSection(BuildContext context) {
+  Widget _buildPrecautionsSection(BuildContext context, List<String> precautions) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03),
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Precautions",
+              "Recommended Precautions",
               style: TextStyle(
                 fontSize: MediaQuery.of(context).size.width * 0.05,
                 fontWeight: FontWeight.bold,
                 color: Colors.blue.shade800,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.01),
-            if (precautions.isEmpty)
-              const Text("No specific precautions needed based on current data.")
-            else
-              ...precautions.map(
-                    (precaution) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("• ", style: TextStyle(fontSize: 16)),
-                      Expanded(child: Text(precaution)),
-                    ],
-                  ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+            ...precautions.map(
+                  (precaution) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        precaution,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
           ],
         ),
       ),
     );
   }
-}   
+
+  Widget _buildHealthTipsSection(BuildContext context) {
+    final tips = [
+      "Stay hydrated: Drink 8-10 glasses of water daily to support blood volume.",
+      "Balanced diet: Include iron-rich foods (e.g., leafy greens) and vitamins (e.g., B12).",
+      "Regular checkups: Schedule blood tests every 3-6 months to monitor trends.",
+      "Exercise moderately: Light activity can boost circulation, but avoid overexertion if anemic.",
+    ];
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "General Health Tips",
+              style: TextStyle(
+                fontSize: MediaQuery.of(context).size.width * 0.05,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade800,
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+            ...tips.map(
+                  (tip) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.lightbulb_outline, color: Colors.green, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        tip,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
