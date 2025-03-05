@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const HomePage(), // HomePage as the root screen
+      home: const LoginPage(), // HomePage as the root screen
     );
   }
 }

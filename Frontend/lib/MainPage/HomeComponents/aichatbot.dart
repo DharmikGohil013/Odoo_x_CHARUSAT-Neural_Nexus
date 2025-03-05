@@ -30,20 +30,13 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
     "Eating Disorders", "Addiction", "OCD", "PTSD",
   ];
 
-  final List<Map<String, dynamic>> _physicalMessages = [];
-  final List<Map<String, dynamic>> _mentalMessages = [];
-  final List<Map<String, dynamic>> _generalMessages = [];
+  final Map<String, List<Map<String, dynamic>>> _messages = {
+    'Physical': [],
+    'Mental': [],
+    'General': [],
+  };
 
-  List<Map<String, dynamic>> get _currentMessages {
-    switch (_selectedChatType) {
-      case 'Physical':
-        return _physicalMessages;
-      case 'Mental':
-        return _mentalMessages;
-      default:
-        return _generalMessages;
-    }
-  }
+  List<Map<String, dynamic>> get _currentMessages => _messages[_selectedChatType]!;
 
   @override
   void initState() {
@@ -51,7 +44,7 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
-    )..repeat(reverse: true);
+    );
     _fadeAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(_animationController);
   }
 
@@ -63,8 +56,13 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
   }
 
   Future<void> _getBotResponse(String message) async {
-    setState(() => _isLoading = true);
-    const apiKey = 'AIzaSyCeVAcIB9H0WtOW6oNNRH7f1NQdjXBgc74';
+    if (_isLoading) return; // Prevent multiple simultaneous requests
+    setState(() {
+      _isLoading = true;
+      _animationController.repeat(reverse: true);
+    });
+
+    const apiKey = 'AIzaSyDlRnwAMR7t-K-kwn1ORdqPkClh0dN03_U'; // Replace with secure storage in production
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey',
     );
@@ -80,44 +78,70 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
         body: jsonEncode({
           'contents': [{'parts': [{'text': prefixedMessage}]}],
         }),
-      );
+      ).timeout(const Duration(seconds: 10)); // Add timeout
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final botResponse = _extractResponse(data) ?? 'Sorry, I couldn’t process that.';
         setState(() {
           _currentMessages.add({"bot": _parseMarkdownToRichText(botResponse)});
-          _isLoading = false;
         });
       } else {
-        throw Exception('API failed with status: ${response.statusCode} - ${response.body}');
+        throw Exception('API failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       setState(() {
         _currentMessages.add({"bot": _parseMarkdownToRichText('Oops! Something went wrong: $e')});
+      });
+    } finally {
+      setState(() {
         _isLoading = false;
+        _animationController.stop();
       });
     }
   }
 
   Widget _parseMarkdownToRichText(String text) {
     final RegExp boldPattern = RegExp(r'\*\*(.*?)\*\*');
+    final RegExp italicPattern = RegExp(r'\*(.*?)\*');
     List<TextSpan> spans = [];
+    String remainingText = text;
     int lastEnd = 0;
 
-    for (Match match in boldPattern.allMatches(text)) {
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
-      }
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ));
-      lastEnd = match.end;
-    }
+    while (remainingText.isNotEmpty) {
+      Match? boldMatch = boldPattern.firstMatch(remainingText);
+      Match? italicMatch = italicPattern.firstMatch(remainingText);
 
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastEnd)));
+      Match? nextMatch;
+      if (boldMatch != null && italicMatch != null) {
+        nextMatch = boldMatch.start < italicMatch.start ? boldMatch : italicMatch;
+      } else {
+        nextMatch = boldMatch ?? italicMatch;
+      }
+
+      if (nextMatch == null) {
+        spans.add(TextSpan(text: remainingText));
+        break;
+      }
+
+      if (nextMatch.start > lastEnd) {
+        spans.add(TextSpan(text: remainingText.substring(0, nextMatch.start)));
+      }
+
+      if (nextMatch == boldMatch) {
+        spans.add(TextSpan(
+          text: nextMatch.group(1),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ));
+      } else if (nextMatch == italicMatch) {
+        spans.add(TextSpan(
+          text: nextMatch.group(1),
+          style: const TextStyle(fontStyle: FontStyle.italic),
+        ));
+      }
+
+      remainingText = remainingText.substring(nextMatch.end);
+      lastEnd = 0;
     }
 
     return RichText(
@@ -141,6 +165,7 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
     if (message.isEmpty) return;
 
     _controller.clear();
+    FocusScope.of(context).unfocus(); // Dismiss keyboard
     setState(() => _currentMessages.add({"user": message}));
     await _getBotResponse(message);
   }
@@ -183,24 +208,20 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
         child: SafeArea(
           child: Column(
             children: [
-              // Responsive Chat Type Selection
+              // Chat Type Selection
               Padding(
-                padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04), // Dynamic padding
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildChatButton('Physical', Icons.fitness_center),
-                      SizedBox(width: MediaQuery.of(context).size.width * 0.02),
-                      _buildChatButton('Mental', Icons.psychology),
-                      SizedBox(width: MediaQuery.of(context).size.width * 0.02),
-                      _buildChatButton('General', Icons.chat),
-                    ],
-                  ),
+                padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+                child: Wrap(
+                  spacing: MediaQuery.of(context).size.width * 0.02,
+                  runSpacing: 8,
+                  children: [
+                    _buildChatButton('Physical', Icons.fitness_center),
+                    _buildChatButton('Mental', Icons.psychology),
+                    _buildChatButton('General', Icons.chat),
+                  ],
                 ),
               ),
-              // Responsive Issue Dropdown
+              // Issue Dropdown
               if (_selectedChatType != 'General')
                 Padding(
                   padding: EdgeInsets.symmetric(
@@ -224,7 +245,7 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
                   },
                 ),
               ),
-              // Responsive Input Area
+              // Input Area
               _buildInputArea(),
             ],
           ),
@@ -238,6 +259,7 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
       onTap: () => setState(() {
         _selectedChatType = type;
         _selectedIssue = null;
+        _currentMessages.clear(); // Clear messages on type switch
       }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -262,7 +284,7 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
           ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min, // Prevents overflow
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: _selectedChatType == type ? Colors.white : Colors.black87, size: 20),
             SizedBox(width: MediaQuery.of(context).size.width * 0.02),
@@ -294,15 +316,12 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
           ),
         ],
       ),
-      width: double.infinity, // Full width but constrained by padding
       child: DropdownButton<String>(
         value: _selectedIssue,
         hint: Text('Pick a ${_selectedChatType.toLowerCase()} issue'),
         onChanged: (String? value) {
-          setState(() {
-            _selectedIssue = value;
-            if (value != null) _sendPredefinedQuery(value);
-          });
+          setState(() => _selectedIssue = value);
+          if (value != null && !_isLoading) _sendPredefinedQuery(value);
         },
         items: (_selectedChatType == 'Physical' ? _physicalIssues : _mentalIssues)
             .map((issue) => DropdownMenuItem<String>(
@@ -318,78 +337,72 @@ class _AIChatbotPageState extends State<AIChatbotPage> with SingleTickerProvider
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> entry, bool isUser) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: Align(
-        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.01),
-          padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.75, // Reduced from 0.8 to avoid overflow
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.01),
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isUser
+                ? [Colors.blue.shade600, Colors.blue.shade800]
+                : [Colors.purple.shade600, Colors.purple.shade800],
           ),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isUser
-                  ? [Colors.blue.shade600, Colors.blue.shade800]
-                  : [Colors.purple.shade600, Colors.purple.shade800],
+          borderRadius: BorderRadius.circular(20).copyWith(
+            topLeft: isUser ? const Radius.circular(20) : Radius.zero,
+            topRight: isUser ? Radius.zero : const Radius.circular(20),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
             ),
-            borderRadius: BorderRadius.circular(20).copyWith(
-              topLeft: isUser ? const Radius.circular(20) : Radius.zero,
-              topRight: isUser ? Radius.zero : const Radius.circular(20),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isUser ? 'You' : 'AI Companion',
+              style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isUser ? 'You' : 'AI Companion',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: MediaQuery.of(context).size.height * 0.008),
-              isUser
-                  ? Text(
-                entry["user"],
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              )
-                  : entry["bot"],
-            ],
-          ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.008),
+            isUser
+                ? Text(
+              entry["user"],
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            )
+                : entry["bot"],
+          ],
         ),
       ),
     );
   }
 
   Widget _buildLoadingBubble() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.01),
-        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SpinKitWave(
-              color: Colors.purple.shade700,
-              size: 30,
-            ),
-            SizedBox(width: MediaQuery.of(context).size.width * 0.03),
-            const Text(
-              'AI Companion is thinking...',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-          ],
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          margin: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.01),
+          padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SpinKitWave(
+                color: Colors.purple.shade700,
+                size: 30,
+              ),
+              SizedBox(width: MediaQuery.of(context).size.width * 0.03),
+              const Text(
+                'AI Companion is thinking...',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       ),
     );
