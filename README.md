@@ -24,7 +24,6 @@
 3. Install dependencies: flutter pub get
 4. Run the app: flutter run
 
----
 
 ## Contact
 For queries, reach out to:
