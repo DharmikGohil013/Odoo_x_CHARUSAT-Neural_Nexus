@@ -9,8 +9,15 @@ const doctorRoutes = require('./routers/doctorRoutes');
 const stepRoutes = require('./routers/stepRoutes'); 
 const cors = require('cors');
 const hospitalRoutes = require('./routers/hospitalRoutes');
+// const express = require('express');
+const mongoose = require('mongoose');
+require('dotenv').config();
+
 
 const port = 3000;
+
+// const app = express();
+// const postRoutes = require('./routers/postRoutes');
 
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
@@ -34,6 +41,11 @@ if (!fs.existsSync(uploadDir)) {
 
 app.get('/', (req, res) => {
     res.send("Hello World");
+});
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: err.message, stack: err.stack });
 });
 
 app.listen(port, () => {
