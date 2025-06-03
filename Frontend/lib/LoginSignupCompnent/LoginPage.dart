@@ -77,6 +77,9 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString('auth_token', token);
         await prefs.setString('user_data', json.encode(user));
 
+
+        print('✅ Token saved and user logged in: ${user['email']}');
+
         if (mounted) {
           setState(() => _errorMessage = null);
           Navigator.pushReplacement(

@@ -1,18 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:fitsync/MainPage/Home.dart';
-import 'package:fitsync/PortSection/ConfigFile.dart';
-import 'package:fitsync/StepCounter.dart';
-import './LoginSignupCompnent/LoginPage.dart';
-import 'hospital_finder/hospital_finder_screen.dart';
-import 'package:fitsync/Step_Counter.dart';
-import 'package:fitsync/StepCounter.dart';
-import 'hospital_finder/NearHospital.dart';
+import 'package:fitsync/LoginSignupCompnent/LoginPage.dart';
+import 'package:fitsync/ProfileComponent/ProfilePage.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized(); // Ensure async before runApp
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  Future<Widget> _getInitialPage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final userJson = prefs.getString('user_data');
+
+      if (token != null && userJson != null) {
+        final user = json.decode(userJson);
+        print('✅ Token found. Auto-login as ${user['email']}');
+        return ProfilePage(initialUserData: user); // Or use Home()
+      } else {
+        print('⚠️ No token found. Showing login screen.');
+      }
+    } catch (e) {
+      print('❌ Auto-login error: $e');
+    }
+
+    return const LoginPage(); // Fallback if token not found or error
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +45,21 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const LoginPage(), // HomePage as the root screen
+      home: FutureBuilder<Widget>(
+        future: _getInitialPage(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            print('❌ FutureBuilder failed. Showing login screen.');
+            return const LoginPage();
+          } else {
+            return snapshot.data!;
+          }
+        },
+      ),
     );
   }
 }

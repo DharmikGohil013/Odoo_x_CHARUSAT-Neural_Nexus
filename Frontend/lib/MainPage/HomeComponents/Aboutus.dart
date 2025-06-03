@@ -47,8 +47,21 @@ class _AboutUsPageState extends State<AboutUsPage> {
               // Contact Us Section
               _buildSectionTitle(context, 'Contact Us'),
               const Text(
-                'Email: support@fitsync.com\nPhone: +1-800-123-4567',
+                'Email: dharmikgohil395003@gmail.com\nPhone: 9624105887',
                 style: TextStyle(fontSize: 16, color: Colors.black87),
+              ),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+
+              // Footer
+              Center(
+                child: Text(
+                  'Made by Neural Nexus team',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             ],
           ),

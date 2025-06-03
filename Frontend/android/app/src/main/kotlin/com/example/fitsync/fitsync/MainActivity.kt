@@ -1,4 +1,4 @@
-package com.example.fitsync
+package com.neuralnexus.fitsync
 
 import io.flutter.embedding.android.FlutterActivity
 

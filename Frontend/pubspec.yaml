@@ -1,5 +1,5 @@
 name: fitsync
-description: "A new health app."
+description: "Sync Wellness"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -30,7 +30,7 @@ dependencies:
   fl_chart: ^0.66.0
   mime: ^1.0.5
   http_parser: ^4.0.2
-  flutter_launcher_icons: ^0.14.3
+  flutter_launcher_icons: ^0.13.1
   flutter_spinkit: ^5.2.1
   flutter_polyline_points: ^2.1.0
   geocoding: ^2.0.5
@@ -46,7 +46,8 @@ dependencies:
 
 flutter_icons:
   android: true
-  image_path: assets/images/logo.png
+  ios: true
+  image_path: "assets/icon/icon.png"
   min_sdk_android: 21 # android min sdk min:16, default 21s
 
 dev_dependencies:
