@@ -1,5 +1,5 @@
 // lib/PortSection/ConfigFile.dart
-const String baseUrl = 'http://192.168.148.94:3000/';
+const String baseUrl = 'https://odoo-x-charusat-neural-nexus.onrender.com/';
 const String registration = '${baseUrl}registration';
 const String login = '${baseUrl}login';
 const String addTodo = '${baseUrl}storeTodo';

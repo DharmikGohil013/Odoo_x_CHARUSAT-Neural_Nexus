@@ -180,7 +180,7 @@ class _ContentPageState extends State<ContentPage> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
-                      '$imageBaseUrl$imagePath', // Use config constant for image URL
+                      imagePath.startsWith('http') ? imagePath : '$imageBaseUrl$imagePath', // Use config constant for image URL
                       fit: BoxFit.cover,
                       width: double.infinity,
                       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
@@ -303,7 +303,7 @@ class PostDetailPage extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  '$imageBaseUrl$imagePath', // Use config constant for image URL
+                  imagePath.startsWith('http') ? imagePath : '$imageBaseUrl$imagePath', // Use config constant for image URL
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: 200,
