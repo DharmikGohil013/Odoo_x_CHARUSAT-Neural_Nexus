@@ -12,9 +12,9 @@
 ---
 
 ## Team Members
-- *Dharmik Gohil* (Team Leader) – Project Management, Backend
+- *Dharmik Gohil* (Team Leader) – Project Management, Backend Development 
 - *Kris Gadara* – Ui/Ux, Frontend
-- *Akash Rakholiya* – Figma Devloper
+- *Akash Rakholiya* – Figma Developer
 
 ---
 
